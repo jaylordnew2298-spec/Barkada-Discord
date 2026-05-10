@@ -1,13 +1,18 @@
 {
   "name": "barkada-bot",
   "version": "1.0.0",
+  "description": "Barkada Discord Bot",
   "main": "barkada.js",
   "scripts": {
     "start": "node barkada.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^16.0.3",
+    "express": "^4.19.2",
     "firebase-admin": "^12.0.0"
   }
 }
