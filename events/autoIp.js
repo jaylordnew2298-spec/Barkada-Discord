@@ -1,3 +1,5 @@
+const { EmbedBuilder } = require('discord.js');
+
 module.exports = {
   name: 'messageCreate',
   async execute(message) {
@@ -5,38 +7,36 @@ module.exports = {
 
     const msg = message.content.toLowerCase();
 
-    // ✅ mas precise detection
-    const ipPattern = /\b(ip|server ip|ano ip|ip ng server|minecraft ip|mc ip)\b/;
-
+    const ipPattern = /\b(ip|server ip|ano ip|ip ng server|mc ip)\b/;
     if (!ipPattern.test(msg)) return;
 
-    message.reply(`
-Choose the server that gives you the best ping: 🇵🇭 PH 🇸🇬 SG 🇭🇰 HK
+    const embed = new EmbedBuilder()
+      .setColor('#00ff99') // 🟢 kulay ng gilid
+      .setTitle('🎮 BARKADA CRAFT SMP')
+      .setDescription(`
+Choose the server that gives you the best ping:
+
+🇵🇭 **PH SERVER**
+┃ JAVA IP: barkadacraftsmp.ph1-mczie.fun:4090  
+┃ BEDROCK IP: barkadacraftsmp.ph1-mczie.fun  
+┃ PORT: 4090  
+
+🇸🇬 **SG SERVER**
+┃ JAVA IP: barkadacraftsmp.sg1-mczie.fun:4090  
+┃ BEDROCK IP: barkadacraftsmp.sg1-mczie.fun  
+┃ PORT: 4090  
+
+🇭🇰 **HK SERVER**
+┃ JAVA IP: barkadacraftsmp.hk-mczie.fun:4090  
+┃ BEDROCK IP: barkadacraftsmp.hk-mczie.fun  
+┃ PORT: 4090  
 
 ━━━━━━━━━━━━━━━
-🎮 BARKADA CRAFT SMP
-━━━━━━━━━━━━━━━
-
-📡 SERVER IPs
-
-🇵🇭 PH SERVER
-┃ JAVA IP: barkadacraftsmp.ph1-mczie.fun:4090
-┃ BEDROCK IP: barkadacraftsmp.ph1-mczie.fun
-┃ PORT: 4090
-
-🇸🇬 SG SERVER
-┃ JAVA IP: barkadacraftsmp.sg1-mczie.fun:4090
-┃ BEDROCK IP: barkadacraftsmp.sg1-mczie.fun
-┃ PORT: 4090
-
-🇭🇰 HK SERVER
-┃ JAVA IP: barkadacraftsmp.hk-mczie.fun:4090
-┃ BEDROCK IP: barkadacraftsmp.hk-mczie.fun
-┃ PORT: 4090
-
-━━━━━━━━━━━━━━━
-✅ Piliin ang pinaka smooth at hindi lag para sayo!
+✅ Piliin ang pinaka smooth at hindi lag!
 ⚔️ See you in-game!
-    `);
+      `)
+      .setFooter({ text: 'Barkada Craft SMP' });
+
+    message.reply({ embeds: [embed] });
   }
 };
