@@ -1,9 +1,9 @@
 require('dotenv').config();
 const fs = require('fs');
 const express = require('express');
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 
-// 🌐 EXPRESS SERVER (keep alive)
+// 🌐 EXPRESS SERVER (keep alive for Render)
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -41,6 +41,41 @@ for (const file of eventFiles) {
     client.on(event.name, (...args) => event.execute(...args, client));
   }
 }
+
+// 🚀 AUTO DEPLOY COMMANDS (IMPORTANT FIX)
+async function deployCommands() {
+  const commands = [];
+
+  const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+
+  for (const file of commandFiles) {
+    const command = require(`./commands/${file}`);
+    commands.push(command.data.toJSON());
+  }
+
+  const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+  try {
+    console.log('🚀 Auto deploying commands...');
+
+    await rest.put(
+      Routes.applicationGuildCommands('1503153945495736331', '1130118065489723442'),
+      { body: commands }
+    );
+
+    console.log('✅ Commands deployed!');
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// ✅ READY EVENT
+client.once('ready', async () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+
+  // 🔥 AUTO DEPLOY HERE
+  await deployCommands();
+});
 
 // 🔐 LOGIN
 client.login(process.env.TOKEN);
