@@ -13,8 +13,8 @@ for (const file of commandFiles) {
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 // ⚠️ PALITAN MO ITO
-const CLIENT_ID = 'YOUR_BOT_CLIENT_ID';
-const GUILD_ID = 'YOUR_SERVER_ID';
+const CLIENT_ID = '1454748504844009525';
+const GUILD_ID = '1130118065489723442';
 
 (async () => {
   try {
