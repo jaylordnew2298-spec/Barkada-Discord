@@ -1,11 +1,18 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const {
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  AudioPlayerStatus
+} = require('@discordjs/voice');
+
 const play = require('play-dl');
 
 const queue = new Map();
 
 module.exports = {
   async execute(message, args) {
-    const voiceChannel = message.member.voice.channel;
+    const member = message.guild.members.cache.get(message.author.id);
+    const voiceChannel = member?.voice?.channel;
 
     if (!voiceChannel) {
       return message.reply('❌ Join a voice channel first');
@@ -13,7 +20,7 @@ module.exports = {
 
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has('Connect') || !permissions.has('Speak')) {
-      return message.reply('❌ I need permissions to join & speak');
+      return message.reply('❌ Need permission to join & speak');
     }
 
     const query = args.join(' ');
@@ -53,12 +60,12 @@ module.exports = {
       } catch (err) {
         console.error(err);
         queue.delete(message.guild.id);
-        return message.reply('❌ Error joining voice');
+        return message.reply('❌ Error joining VC');
       }
 
     } else {
       serverQueue.songs.push(song);
-      return message.reply(`✅ Added to queue: **${query}**`);
+      return message.reply(`✅ Added to queue: ${query}`);
     }
   },
 
@@ -85,7 +92,7 @@ module.exports = {
         this.playSong(guild, serverQueue.songs[0]);
       });
 
-      serverQueue.textChannel.send(`🎶 Now Playing: **${song.title}**`);
+      serverQueue.textChannel.send(`🎶 Now Playing: ${song.title}`);
 
     } catch (err) {
       console.error(err);
@@ -97,6 +104,7 @@ module.exports = {
   skip(message) {
     const serverQueue = queue.get(message.guild.id);
     if (!serverQueue) return message.reply('❌ Nothing playing');
+
     serverQueue.player.stop();
   },
 
