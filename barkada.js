@@ -7,7 +7,7 @@ const config = require('./config.json');
 const handleCommands = require('./includes/handleCommands');
 const handleEvents = require('./includes/handleEvents');
 
-// 🌐 EXPRESS
+// 🌐 EXPRESS (for Render + UptimeRobot)
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -19,12 +19,13 @@ app.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🤖 CLIENT
+// 🤖 DISCORD CLIENT
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers // 🔥 REQUIRED FOR JOIN/LEAVE
   ]
 });
 
