@@ -1,83 +1,77 @@
-const { Player } = require('discord-player');
-const { EmbedBuilder } = require('discord.js');
+const { 
+  joinVoiceChannel, 
+  createAudioPlayer, 
+  createAudioResource, 
+  AudioPlayerStatus 
+} = require('@discordjs/voice');
 
-let player;
+const play = require('play-dl');
 
-function init(client) {
-  player = new Player(client);
-
-  player.events.on('playerStart', (queue, track) => {
-    const embed = new EmbedBuilder()
-      .setColor('#00aaff')
-      .setTitle('🎵 Now Playing')
-      .setDescription(`**${track.title}**`)
-      .addFields(
-        { name: '⏱ Duration', value: track.duration, inline: true },
-        { name: '👤 Requested by', value: `<@${track.requestedBy.id}>`, inline: true }
-      );
-
-    queue.metadata.channel.send({ embeds: [embed] });
-  });
-
-  // auto leave kapag walang laman
-  player.events.on('emptyQueue', (queue) => {
-    queue.metadata.channel.send('📭 Queue ended. Leaving voice channel.');
-  });
-}
-
-async function play(message, query) {
-  if (!message.member.voice.channel)
-    return message.reply('❌ Join a voice channel first!');
-
-  const result = await player.search(query.join(' '), {
-    requestedBy: message.author
-  });
-
-  if (!result || !result.tracks.length)
-    return message.reply('❌ No results found.');
-
-  const queue = await player.nodes.create(message.guild, {
-    metadata: {
-      channel: message.channel
-    }
-  });
-
-  try {
-    if (!queue.connection)
-      await queue.connect(message.member.voice.channel);
-  } catch {
-    player.nodes.delete(message.guild.id);
-    return message.reply('❌ Cannot join voice channel.');
-  }
-
-  queue.addTrack(result.tracks[0]);
-
-  if (!queue.isPlaying()) await queue.node.play();
-
-  message.reply(`🎶 Added **${result.tracks[0].title}** to queue`);
-}
-
-function skip(message) {
-  const queue = player.nodes.get(message.guild.id);
-  if (!queue || !queue.isPlaying())
-    return message.reply('❌ Nothing playing.');
-
-  queue.node.skip();
-  message.reply('⏭ Skipped!');
-}
-
-function stop(message) {
-  const queue = player.nodes.get(message.guild.id);
-  if (!queue)
-    return message.reply('❌ Nothing playing.');
-
-  queue.delete();
-  message.reply('⏹ Stopped and left VC.');
-}
+const players = new Map();
 
 module.exports = {
-  init,
-  play,
-  skip,
-  stop
+
+  async execute(message, args) {
+    const query = args.join(' ');
+    if (!query) return message.reply('❌ Provide a song name or URL');
+
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.reply('❌ Join a voice channel first');
+
+    try {
+      const search = await play.search(query, { limit: 1 });
+      if (!search.length) return message.reply('❌ No results found');
+
+      const url = search[0].url;
+
+      const stream = await play.stream(url);
+
+      const resource = createAudioResource(stream.stream, {
+        inputType: stream.type
+      });
+
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator
+      });
+
+      const player = createAudioPlayer();
+      players.set(message.guild.id, player);
+
+      connection.subscribe(player);
+      player.play(resource);
+
+      message.channel.send(`🎶 Now Playing: **${search[0].title}**`);
+
+      player.on(AudioPlayerStatus.Idle, () => {
+        connection.destroy();
+        players.delete(message.guild.id);
+      });
+
+    } catch (err) {
+      console.error(err);
+      message.reply('❌ Error playing music');
+    }
+  },
+
+  skip(message) {
+    const player = players.get(message.guild.id);
+    if (!player) return message.reply('❌ Nothing playing');
+
+    player.stop();
+    message.channel.send('⏭ Skipped');
+  },
+
+  stop(message) {
+    const player = players.get(message.guild.id);
+    if (!player) return message.reply('❌ Nothing playing');
+
+    player.stop();
+    players.delete(message.guild.id);
+
+    message.guild.members.me.voice.disconnect();
+
+    message.channel.send('⏹ Stopped and left voice channel');
+  }
 };
