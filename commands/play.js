@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { exec } = require('child_process');
 const playdl = require('play-dl');
+const { EmbedBuilder } = require('discord.js');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp');
 fs.ensureDirSync(TEMP_DIR);
@@ -68,8 +69,12 @@ module.exports = {
 
     const query = args.join(' ');
 
-    // 🔥 dito sya mag ssend (current channel)
-    await message.channel.send(`🔍 Searching: **${query}**...`);
+    // 🟡 SEARCH EMBED
+    const searchEmbed = new EmbedBuilder()
+      .setColor('#FEE75C')
+      .setDescription(`🔍 Searching: **${query}**...`);
+
+    await message.channel.send({ embeds: [searchEmbed] });
 
     const ts = Date.now();
     const rawPath = path.join(TEMP_DIR, `raw_${ts}`);
@@ -80,8 +85,20 @@ module.exports = {
 
       await run(`ffmpeg -y -i "${rawPath}" -vn -ar 44100 -ac 2 -b:a 128k "${outPath}"`);
 
+      // 🟡 RESULT EMBED
+      const musicEmbed = new EmbedBuilder()
+        .setColor('#FEE75C')
+        .setTitle('🎧 Now Playing')
+        .addFields(
+          { name: '🎵 Title', value: title, inline: false },
+          { name: '👤 Artist', value: artist, inline: false },
+          { name: '📥 Info', value: 'Download below 👇', inline: false }
+        )
+        .setFooter({ text: 'Barkada Music System' })
+        .setTimestamp();
+
       await message.channel.send({
-        content: `🎧 **${title}**\n👤 ${artist}`,
+        embeds: [musicEmbed],
         files: [outPath]
       });
 
@@ -90,7 +107,12 @@ module.exports = {
 
     } catch (err) {
       console.error(err);
-      message.channel.send('❌ Failed to fetch song');
+
+      const errorEmbed = new EmbedBuilder()
+        .setColor('Red')
+        .setDescription('❌ Failed to fetch song');
+
+      message.channel.send({ embeds: [errorEmbed] });
     }
   }
 };
