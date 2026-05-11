@@ -1,7 +1,7 @@
 {
   "name": "barkada-bot",
-  "version": "1.0.0",
-  "description": "Barkada Discord Bot",
+  "version": "2.0.0",
+  "description": "Barkada Discord Bot with Music System",
   "main": "barkada.js",
   "scripts": {
     "start": "node barkada.js"
@@ -13,6 +13,12 @@
     "discord.js": "^14.14.1",
     "dotenv": "^16.0.3",
     "express": "^4.19.2",
-    "firebase-admin": "^12.0.0"
+    "firebase-admin": "^12.0.0",
+
+    // 🎵 MUSIC SYSTEM
+    "discord-player": "^6.6.8",
+    "play-dl": "^1.9.7",
+    "@discordjs/voice": "^0.16.0",
+    "ffmpeg-static": "^5.2.0"
   }
 }
