@@ -14,8 +14,6 @@
     "dotenv": "^16.0.3",
     "express": "^4.19.2",
     "firebase-admin": "^12.0.0",
-
-    // 🎵 MUSIC SYSTEM
     "discord-player": "^6.6.8",
     "play-dl": "^1.9.7",
     "@discordjs/voice": "^0.16.0",
