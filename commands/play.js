@@ -2,12 +2,14 @@ const fs = require('fs-extra');
 const path = require('path');
 const { exec } = require('child_process');
 const playdl = require('play-dl');
-const { EmbedBuilder } = require('discord.js');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp');
 fs.ensureDirSync(TEMP_DIR);
 
 let scReady = false;
+
+// 🔥 LOCK (para isang process lang sabay)
+let isProcessing = false;
 
 async function ensureSC() {
   if (scReady) return;
@@ -63,18 +65,22 @@ module.exports = {
   name: 'play',
 
   async execute(message, args) {
+
+    // 🔥 CHECK IF BUSY
+    if (isProcessing) {
+      return message.reply('⏳ Please wait, a song is already being processed...');
+    }
+
     if (!args.length) {
       return message.reply('❌ Usage: .play <song name>');
     }
 
     const query = args.join(' ');
 
-    // 🟡 SEARCH EMBED
-    const searchEmbed = new EmbedBuilder()
-      .setColor('#FEE75C')
-      .setDescription(`🔍 Searching: **${query}**...`);
+    // 🔒 LOCK ON
+    isProcessing = true;
 
-    await message.channel.send({ embeds: [searchEmbed] });
+    const searchingMsg = await message.reply(`🔍 Searching: **${query}...**`);
 
     const ts = Date.now();
     const rawPath = path.join(TEMP_DIR, `raw_${ts}`);
@@ -85,20 +91,17 @@ module.exports = {
 
       await run(`ffmpeg -y -i "${rawPath}" -vn -ar 44100 -ac 2 -b:a 128k "${outPath}"`);
 
-      // 🟡 RESULT EMBED
-      const musicEmbed = new EmbedBuilder()
-        .setColor('#FEE75C')
-        .setTitle('🎧 Now Playing')
-        .addFields(
-          { name: '🎵 Title', value: title, inline: false },
-          { name: '👤 Artist', value: artist, inline: false },
-          { name: '📥 Info', value: 'Download below 👇', inline: false }
-        )
-        .setFooter({ text: 'Barkada Music System' })
-        .setTimestamp();
+      await searchingMsg.delete().catch(() => {});
 
-      await message.channel.send({
-        embeds: [musicEmbed],
+      await message.reply({
+        content:
+`🎧 **Now Playing**
+━━━━━━━━━━━━━━
+🎵 **Title**
+${title}
+
+👤 **Artist**
+${artist}`,
         files: [outPath]
       });
 
@@ -107,12 +110,11 @@ module.exports = {
 
     } catch (err) {
       console.error(err);
-
-      const errorEmbed = new EmbedBuilder()
-        .setColor('Red')
-        .setDescription('❌ Failed to fetch song');
-
-      message.channel.send({ embeds: [errorEmbed] });
+      await searchingMsg.delete().catch(() => {});
+      message.reply('❌ Failed to fetch song');
     }
+
+    // 🔓 UNLOCK (IMPORTANT!)
+    isProcessing = false;
   }
 };
