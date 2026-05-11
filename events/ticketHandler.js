@@ -7,19 +7,36 @@ const {
   ButtonStyle
 } = require('discord.js');
 
+const CATEGORY_ID = '1320198142012162110';
 const LOG_CHANNEL = '1320185387255332954';
+const STAFF_ROLE_ID = '1502803853475709108';
 
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction) {
+
     if (!interaction.isButton()) return;
 
     // 🎫 CREATE TICKET
     if (interaction.customId === 'create_ticket') {
 
+      // 🚫 PREVENT MULTIPLE TICKETS
+      const existing = interaction.guild.channels.cache.find(
+        c => c.name === `ticket-${interaction.user.id}`
+      );
+
+      if (existing) {
+        return interaction.reply({
+          content: `❌ You already have a ticket: ${existing}`,
+          ephemeral: true
+        });
+      }
+
+      // 📂 CREATE CHANNEL
       const channel = await interaction.guild.channels.create({
-        name: `ticket-${interaction.user.username}`,
+        name: `ticket-${interaction.user.id}`,
         type: ChannelType.GuildText,
+        parent: CATEGORY_ID,
         permissionOverwrites: [
           {
             id: interaction.guild.id,
@@ -27,14 +44,27 @@ module.exports = {
           },
           {
             id: interaction.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory
+            ]
+          },
+          {
+            id: STAFF_ROLE_ID,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory
+            ]
           }
         ]
       });
 
+      // 🎨 EMBED
       const embed = new EmbedBuilder()
         .setColor('#00ffcc')
-        .setTitle('🎫 Ticket Created')
+        .setTitle('🎫 Ticket Opened')
         .setDescription('Support will assist you shortly.');
 
       const row = new ActionRowBuilder().addComponents(
@@ -45,13 +75,13 @@ module.exports = {
       );
 
       await channel.send({
-        content: `<@${interaction.user.id}>`,
+        content: `<@${interaction.user.id}> <@&${STAFF_ROLE_ID}>`,
         embeds: [embed],
         components: [row]
       });
 
       await interaction.reply({
-        content: `✅ Your ticket: ${channel}`,
+        content: `✅ Ticket created: ${channel}`,
         ephemeral: true
       });
     }
@@ -59,12 +89,29 @@ module.exports = {
     // 🔒 CLOSE TICKET
     if (interaction.customId === 'close_ticket') {
 
+      if (!interaction.channel.name.startsWith('ticket-')) return;
+
+      const messages = await interaction.channel.messages.fetch({ limit: 100 });
+
+      // 📝 CREATE TRANSCRIPT
+      let transcript = `TICKET TRANSCRIPT\n\n`;
+
+      messages.reverse().forEach(msg => {
+        transcript += `[${msg.author.tag}] ${msg.content}\n`;
+      });
+
       const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL);
 
       if (logChannel) {
-        logChannel.send(
-          `📁 Ticket closed: ${interaction.channel.name} by <@${interaction.user.id}>`
-        );
+        await logChannel.send({
+          content: `📁 Ticket closed: ${interaction.channel.name} by <@${interaction.user.id}>`,
+          files: [
+            {
+              attachment: Buffer.from(transcript, 'utf-8'),
+              name: `transcript-${interaction.channel.name}.txt`
+            }
+          ]
+        });
       }
 
       await interaction.reply({
