@@ -96,8 +96,7 @@ module.exports = {
         .setTitle('🎧 Now Playing')
         .addFields(
           { name: '🎵 Title', value: title },
-          { name: '👤 Artist', value: artist },
-          { name: '📥 Info', value: 'Download below 👇' }
+          { name: '👤 Artist', value: artist }          
         )
         .setFooter({ text: 'Barkada Music System' });
 
