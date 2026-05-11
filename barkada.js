@@ -19,13 +19,14 @@ app.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🤖 CLIENT
+// 🤖 CLIENT (🔥 FIXED INTENTS)
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates // ✅ REQUIRED FIX
   ]
 });
 
@@ -35,7 +36,7 @@ client.commands = new Collection();
 handleCommands(client);
 handleEvents(client);
 
-// PREFIX COMMANDS
+// 💬 PREFIX COMMANDS
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
