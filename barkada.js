@@ -3,11 +3,14 @@ const express = require('express');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const config = require('./config.json');
 
+// 🎵 MUSIC PLAYER
+const musicPlayer = require('./music/player');
+
 // handlers
 const handleCommands = require('./includes/handleCommands');
 const handleEvents = require('./includes/handleEvents');
 
-// 🌐 EXPRESS (for Render + UptimeRobot)
+// 🌐 EXPRESS (Render keep alive)
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -25,15 +28,24 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers // 🔥 REQUIRED FOR JOIN/LEAVE
+    GatewayIntentBits.GuildMembers,      // join/leave logs
+    GatewayIntentBits.GuildVoiceStates   // 🔥 REQUIRED FOR MUSIC
   ]
 });
 
 client.commands = new Collection();
 
-// 📦 LOAD HANDLERS
+// 📦 LOAD COMMANDS & EVENTS
 handleCommands(client);
 handleEvents(client);
+
+// ✅ READY EVENT
+client.once('ready', () => {
+  console.log(`🤖 Logged in as ${client.user.tag}`);
+
+  // 🎵 INIT MUSIC SYSTEM
+  musicPlayer.init(client);
+});
 
 // 💬 PREFIX COMMAND HANDLER
 client.on('messageCreate', async (message) => {
@@ -49,13 +61,10 @@ client.on('messageCreate', async (message) => {
   if (!command) return;
 
   try {
-    await command.execute({
-      ...message,
-      reply: (msg) => message.reply(msg)
-    });
+    await command.execute(message, args);
   } catch (err) {
     console.error(err);
-    message.reply('Error executing command');
+    message.reply('❌ Error executing command');
   }
 });
 
