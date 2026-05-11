@@ -1,95 +1,83 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
-const play = require('play-dl');
+const { Player } = require('discord-player');
+const { EmbedBuilder } = require('discord.js');
 
-const queues = new Map();
+let player;
 
-async function playSong(guild, song) {
-  const queue = queues.get(guild.id);
-  if (!song) {
-    queue.connection.destroy();
-    queues.delete(guild.id);
-    return;
-  }
+function init(client) {
+  player = new Player(client);
 
-  const stream = await play.stream(song.url);
+  player.events.on('playerStart', (queue, track) => {
+    const embed = new EmbedBuilder()
+      .setColor('#00aaff')
+      .setTitle('🎵 Now Playing')
+      .setDescription(`**${track.title}**`)
+      .addFields(
+        { name: '⏱ Duration', value: track.duration, inline: true },
+        { name: '👤 Requested by', value: `<@${track.requestedBy.id}>`, inline: true }
+      );
 
-  const resource = createAudioResource(stream.stream, {
-    inputType: stream.type
+    queue.metadata.channel.send({ embeds: [embed] });
   });
 
-  queue.player.play(resource);
-
-  queue.player.once(AudioPlayerStatus.Idle, () => {
-    queue.songs.shift();
-    playSong(guild, queue.songs[0]);
+  // auto leave kapag walang laman
+  player.events.on('emptyQueue', (queue) => {
+    queue.metadata.channel.send('📭 Queue ended. Leaving voice channel.');
   });
 }
 
-module.exports = {
-  async execute(message, args) {
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) return message.reply('❌ Join a voice channel first!');
+async function play(message, query) {
+  if (!message.member.voice.channel)
+    return message.reply('❌ Join a voice channel first!');
 
-    const permissions = voiceChannel.permissionsFor(message.client.user);
-    if (!permissions.has('Connect') || !permissions.has('Speak')) {
-      return message.reply('❌ I need permission to join and speak!');
+  const result = await player.search(query.join(' '), {
+    requestedBy: message.author
+  });
+
+  if (!result || !result.tracks.length)
+    return message.reply('❌ No results found.');
+
+  const queue = await player.nodes.create(message.guild, {
+    metadata: {
+      channel: message.channel
     }
+  });
 
-    const query = args.join(' ');
-    if (!query) return message.reply('❌ Provide a song name or URL');
-
-    const result = await play.search(query, { limit: 1 });
-    const song = {
-      title: result[0].title,
-      url: result[0].url
-    };
-
-    let queue = queues.get(message.guild.id);
-
-    if (!queue) {
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator
-      });
-
-      const player = createAudioPlayer();
-
-      connection.subscribe(player);
-
-      queue = {
-        connection,
-        player,
-        songs: []
-      };
-
-      queues.set(message.guild.id, queue);
-    }
-
-    queue.songs.push(song);
-
-    if (queue.songs.length === 1) {
-      playSong(message.guild, queue.songs[0]);
-    }
-
-    message.reply(`🎵 Playing: **${song.title}**`);
-  },
-
-  skip(message) {
-    const queue = queues.get(message.guild.id);
-    if (!queue) return message.reply('❌ Nothing playing');
-
-    queue.player.stop();
-    message.reply('⏭ Skipped!');
-  },
-
-  stop(message) {
-    const queue = queues.get(message.guild.id);
-    if (!queue) return message.reply('❌ Nothing playing');
-
-    queue.connection.destroy();
-    queues.delete(message.guild.id);
-
-    message.reply('⏹ Stopped!');
+  try {
+    if (!queue.connection)
+      await queue.connect(message.member.voice.channel);
+  } catch {
+    player.nodes.delete(message.guild.id);
+    return message.reply('❌ Cannot join voice channel.');
   }
+
+  queue.addTrack(result.tracks[0]);
+
+  if (!queue.isPlaying()) await queue.node.play();
+
+  message.reply(`🎶 Added **${result.tracks[0].title}** to queue`);
+}
+
+function skip(message) {
+  const queue = player.nodes.get(message.guild.id);
+  if (!queue || !queue.isPlaying())
+    return message.reply('❌ Nothing playing.');
+
+  queue.node.skip();
+  message.reply('⏭ Skipped!');
+}
+
+function stop(message) {
+  const queue = player.nodes.get(message.guild.id);
+  if (!queue)
+    return message.reply('❌ Nothing playing.');
+
+  queue.delete();
+  message.reply('⏹ Stopped and left VC.');
+}
+
+module.exports = {
+  init,
+  play,
+  skip,
+  stop
 };
