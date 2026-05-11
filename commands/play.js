@@ -2,13 +2,12 @@ const fs = require('fs-extra');
 const path = require('path');
 const { exec } = require('child_process');
 const playdl = require('play-dl');
+const { EmbedBuilder } = require('discord.js');
 
 const TEMP_DIR = path.join(process.cwd(), 'temp');
 fs.ensureDirSync(TEMP_DIR);
 
 let scReady = false;
-
-// 🔥 LOCK (para isang process lang sabay)
 let isProcessing = false;
 
 async function ensureSC() {
@@ -66,7 +65,6 @@ module.exports = {
 
   async execute(message, args) {
 
-    // 🔥 CHECK IF BUSY
     if (isProcessing) {
       return message.reply('⏳ Please wait, a song is already being processed...');
     }
@@ -76,8 +74,6 @@ module.exports = {
     }
 
     const query = args.join(' ');
-
-    // 🔒 LOCK ON
     isProcessing = true;
 
     const searchingMsg = await message.reply(`🔍 Searching: **${query}...**`);
@@ -91,17 +87,23 @@ module.exports = {
 
       await run(`ffmpeg -y -i "${rawPath}" -vn -ar 44100 -ac 2 -b:a 128k "${outPath}"`);
 
+      // ❌ remove searching
       await searchingMsg.delete().catch(() => {});
 
-      await message.reply({
-        content:
-`🎧 **Now Playing**
-━━━━━━━━━━━━━━
-🎵 **Title**
-${title}
+      // ✅ EMBED (YELLOW STYLE)
+      const embed = new EmbedBuilder()
+        .setColor('#FFD700') // 🔥 yellow
+        .setTitle('🎧 Now Playing')
+        .addFields(
+          { name: '🎵 Title', value: title },
+          { name: '👤 Artist', value: artist },
+          { name: '📥 Info', value: 'Download below 👇' }
+        )
+        .setFooter({ text: 'Barkada Music System' });
 
-👤 **Artist**
-${artist}`,
+      // ✅ ONE MESSAGE ONLY
+      await message.reply({
+        embeds: [embed],
         files: [outPath]
       });
 
@@ -114,7 +116,6 @@ ${artist}`,
       message.reply('❌ Failed to fetch song');
     }
 
-    // 🔓 UNLOCK (IMPORTANT!)
     isProcessing = false;
   }
 };
