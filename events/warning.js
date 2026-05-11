@@ -1,69 +1,46 @@
 const { setData, getData } = require('../database.js');
 const { EmbedBuilder } = require('discord.js');
 
-// ── BAD WORDS (EXPANDED) ──
+// ── BAD WORDS ──
 const badwords = [
-  // 🔥 ENGLISH
-  "fuck","fucker","fucking","fuckface","motherfucker",
-  "shit","bullshit","shithead","dipshit",
-  "bitch","bastard","ass","asshole","asshat","dumbass",
-  "douche","douchebag","jackass","retard","idiot","moron",
-  "stupid","dumb","loser",
-
-  // 🔞 SEXUAL
-  "porn","sex","sexy","nude","nudes","boobs","tits",
-  "penis","vagina","cum","orgasm","rape","rapist",
-  "blowjob","handjob","anal",
-
-  // ☠️ TOXIC
-  "kys","kill yourself","go die","die","kill urself","suicide",
-
-  // 🏳️‍🌈 SLURS
-  "faggot","gayass","lesbo","tranny",
-
-  // 🇵🇭 FILIPINO
-  "tanga","bobo","gago","puta","putangina","pakyu",
-  "ulol","inutil","tangina","tang ina","pota",
-  "inamo","kantot","kantutan","jakol","jakolero",
-  "puke","puki","supot","bayag","tarantado",
-  "bwisit","leche","gunggong","engot","baliw",
-
-  // 🧠 BYPASS VARIANTS
-  "fvck","fck","fuk","fuxk",
-  "sh1t","sht","shyt",
-  "b1tch","btch",
-  "d1ck","dck",
-  "p0rn","prn"
+  "fuck","shit","bitch","asshole","bastard","dick","pussy","cunt",
+  "slut","whore","retard","idiot","moron",
+  "motherfucker","fucker","bullshit","fuckface",
+  "kys","kill yourself",
+  "tanga","bobo","gago","puta","pakyu","ulol",
+  "tangina","pota","kantot","jakol","puke",
+  "fvck","fck","fuk","sh1t","b1tch"
 ];
 
 // ── RACIST ──
-const racistWords = [
-  "nigger","nigga","chimp","chink","indio"
-];
+const racistWords = ["nigger","nigga","chimp","chink","indio"];
 
 // ── ALLOWED LINKS ──
 const allowedLinks = [
   "facebook.com","fb.com","tiktok.com","youtube.com","youtu.be","roblox.com"
 ];
 
-// ── RANDOM PICK ──
+// ⏱ MUTE DURATIONS
+const punishments = [
+  5 * 60 * 1000,
+  20 * 60 * 1000,
+  60 * 60 * 1000
+];
+
+// ── SPAM TRACKER (memory)
+const spamMap = new Map();
+
+// ── RANDOM PICK
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// ── MESSAGES ──
 const messages = {
   bad: ["Watch your language.", "Respect others."],
   racist: ["Racist language is not allowed."],
-  link: ["Unauthorized link detected."]
+  link: ["Unauthorized link detected."],
+  spam: ["Stop spamming.", "Too many messages detected."]
 };
-
-// ⏱ MUTE DURATIONS
-const punishments = [
-  5 * 60 * 1000,    // 5 mins
-  20 * 60 * 1000,   // 20 mins
-  60 * 60 * 1000    // 1 hour
-];
 
 module.exports = {
   name: 'messageCreate',
@@ -71,9 +48,11 @@ module.exports = {
     if (message.author.bot) return;
     if (!message.guild) return;
 
+    const userId = message.author.id;
+    const guildId = message.guild.id;
     const text = message.content.toLowerCase();
 
-    // 🔥 ANTI BYPASS (leet + symbols)
+    // ── ANTI BYPASS
     const clean = text
       .replace(/[@4]/g, "a")
       .replace(/[!1]/g, "i")
@@ -81,8 +60,7 @@ module.exports = {
       .replace(/0/g, "o")
       .replace(/5/g, "s")
       .replace(/7/g, "t")
-      .replace(/[^a-z0-9]/g, "")
-      .replace(/\s+/g, "");
+      .replace(/[^a-z0-9]/g, "");
 
     let type = null;
     let note = "";
@@ -108,15 +86,33 @@ module.exports = {
       }
     }
 
+    // ── SPAM DETECTION
+    const now = Date.now();
+    if (!spamMap.has(userId)) {
+      spamMap.set(userId, []);
+    }
+
+    const userMessages = spamMap.get(userId);
+
+    // remove old messages (5 seconds window)
+    const filtered = userMessages.filter(msg => now - msg.time < 5000);
+    filtered.push({ content: text, time: now });
+    spamMap.set(userId, filtered);
+
+    // condition: 5 messages in 5 sec OR same message 3x
+    const sameMsgCount = filtered.filter(m => m.content === text).length;
+
+    if (filtered.length >= 5 || sameMsgCount >= 3) {
+      type = "Spam";
+      note = pick(messages.spam);
+    }
+
     if (!type) return;
 
-    const userId = message.author.id;
-    const guildId = message.guild.id;
-
+    // ── WARNING SYSTEM
     let data = await getData(`warnings/${guildId}/${userId}`);
     if (!data) data = { count: 0 };
 
-    // 🔁 RESET AFTER 3
     if (data.count >= 3) data.count = 0;
 
     data.count++;
@@ -126,7 +122,7 @@ module.exports = {
     const duration = punishments[data.count - 1];
     const minutes = Math.floor(duration / 60000);
 
-    // 🎨 EMBED
+    // ── EMBED
     const embed = new EmbedBuilder()
       .setColor('#ffaa00')
       .setTitle('⚠️ WARNING')
@@ -136,13 +132,14 @@ module.exports = {
         { name: '🔇 Action', value: `Muted for ${minutes} minute${minutes > 1 ? 's' : ''}` },
         { name: '📝 Note', value: note },
         { name: '⚠️ Strike', value: `${data.count}/3` }
-      )
-      .setFooter({ text: 'Barkada Protection System' });
+      );
 
     await message.reply({ embeds: [embed] });
 
-    // 🔇 APPLY MUTE
+    // 🔇 MUTE
     try {
+      if (!message.member.moderatable) return;
+
       await message.member.timeout(duration, "Auto moderation");
 
       await message.channel.send(
