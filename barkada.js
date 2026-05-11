@@ -3,14 +3,11 @@ const express = require('express');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const config = require('./config.json');
 
-// 🎵 MUSIC PLAYER
-const musicPlayer = require('./music/player');
-
 // handlers
 const handleCommands = require('./includes/handleCommands');
 const handleEvents = require('./includes/handleEvents');
 
-// 🌐 EXPRESS (Render keep alive)
+// 🌐 EXPRESS
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -22,32 +19,23 @@ app.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
 });
 
-// 🤖 DISCORD CLIENT
+// 🤖 CLIENT
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,      // join/leave logs
-    GatewayIntentBits.GuildVoiceStates   // 🔥 REQUIRED FOR MUSIC
+    GatewayIntentBits.GuildMembers
   ]
 });
 
 client.commands = new Collection();
 
-// 📦 LOAD COMMANDS & EVENTS
+// LOAD
 handleCommands(client);
 handleEvents(client);
 
-// ✅ READY EVENT
-client.once('ready', () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
-
-  // 🎵 INIT MUSIC SYSTEM
-  musicPlayer.init(client);
-});
-
-// 💬 PREFIX COMMAND HANDLER
+// PREFIX COMMANDS
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
@@ -68,5 +56,5 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// 🔐 LOGIN
+// LOGIN
 client.login(process.env.TOKEN);
