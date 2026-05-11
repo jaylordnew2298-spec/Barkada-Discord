@@ -1,77 +1,112 @@
-const { 
-  joinVoiceChannel, 
-  createAudioPlayer, 
-  createAudioResource, 
-  AudioPlayerStatus 
-} = require('@discordjs/voice');
-
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const play = require('play-dl');
 
-const players = new Map();
+const queue = new Map();
 
 module.exports = {
-
   async execute(message, args) {
-    const query = args.join(' ');
-    if (!query) return message.reply('❌ Provide a song name or URL');
-
     const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) return message.reply('❌ Join a voice channel first');
+
+    if (!voiceChannel) {
+      return message.reply('❌ Join a voice channel first');
+    }
+
+    const permissions = voiceChannel.permissionsFor(message.client.user);
+    if (!permissions.has('Connect') || !permissions.has('Speak')) {
+      return message.reply('❌ I need permissions to join & speak');
+    }
+
+    const query = args.join(' ');
+    if (!query) return message.reply('❌ Enter a song name');
+
+    const serverQueue = queue.get(message.guild.id);
+
+    const song = {
+      title: query,
+      url: query
+    };
+
+    if (!serverQueue) {
+      const queueContruct = {
+        textChannel: message.channel,
+        voiceChannel,
+        connection: null,
+        player: createAudioPlayer(),
+        songs: []
+      };
+
+      queue.set(message.guild.id, queueContruct);
+      queueContruct.songs.push(song);
+
+      try {
+        const connection = joinVoiceChannel({
+          channelId: voiceChannel.id,
+          guildId: message.guild.id,
+          adapterCreator: message.guild.voiceAdapterCreator
+        });
+
+        queueContruct.connection = connection;
+        connection.subscribe(queueContruct.player);
+
+        this.playSong(message.guild, queueContruct.songs[0]);
+
+      } catch (err) {
+        console.error(err);
+        queue.delete(message.guild.id);
+        return message.reply('❌ Error joining voice');
+      }
+
+    } else {
+      serverQueue.songs.push(song);
+      return message.reply(`✅ Added to queue: **${query}**`);
+    }
+  },
+
+  async playSong(guild, song) {
+    const serverQueue = queue.get(guild.id);
+
+    if (!song) {
+      serverQueue.connection.destroy();
+      queue.delete(guild.id);
+      return;
+    }
 
     try {
-      const search = await play.search(query, { limit: 1 });
-      if (!search.length) return message.reply('❌ No results found');
-
-      const url = search[0].url;
-
-      const stream = await play.stream(url);
+      const stream = await play.stream(song.url);
 
       const resource = createAudioResource(stream.stream, {
         inputType: stream.type
       });
 
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator
+      serverQueue.player.play(resource);
+
+      serverQueue.player.once(AudioPlayerStatus.Idle, () => {
+        serverQueue.songs.shift();
+        this.playSong(guild, serverQueue.songs[0]);
       });
 
-      const player = createAudioPlayer();
-      players.set(message.guild.id, player);
-
-      connection.subscribe(player);
-      player.play(resource);
-
-      message.channel.send(`🎶 Now Playing: **${search[0].title}**`);
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        connection.destroy();
-        players.delete(message.guild.id);
-      });
+      serverQueue.textChannel.send(`🎶 Now Playing: **${song.title}**`);
 
     } catch (err) {
       console.error(err);
-      message.reply('❌ Error playing music');
+      serverQueue.songs.shift();
+      this.playSong(guild, serverQueue.songs[0]);
     }
   },
 
   skip(message) {
-    const player = players.get(message.guild.id);
-    if (!player) return message.reply('❌ Nothing playing');
-
-    player.stop();
-    message.channel.send('⏭ Skipped');
+    const serverQueue = queue.get(message.guild.id);
+    if (!serverQueue) return message.reply('❌ Nothing playing');
+    serverQueue.player.stop();
   },
 
   stop(message) {
-    const player = players.get(message.guild.id);
-    if (!player) return message.reply('❌ Nothing playing');
+    const serverQueue = queue.get(message.guild.id);
+    if (!serverQueue) return message.reply('❌ Nothing playing');
 
-    player.stop();
-    players.delete(message.guild.id);
-
-    message.guild.members.me.voice.disconnect();
-
-    message.channel.send('⏹ Stopped and left voice channel');
+    serverQueue.songs = [];
+    serverQueue.player.stop();
+    serverQueue.connection.destroy();
+    queue.delete(message.guild.id);
   }
 };
