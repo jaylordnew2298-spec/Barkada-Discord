@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 
 const CATEGORY_ID = '1320198142012162110';
-const LOG_CHANNEL = '1320185387255332954';
+const LOG_CHANNEL = '1311656159123603457';
 const STAFF_ROLE_ID = '1502803853475709108';
 
 module.exports = {
