@@ -1,120 +1,75 @@
-const {
-  joinVoiceChannel,
-  createAudioPlayer,
-  createAudioResource,
-  AudioPlayerStatus
-} = require('@discordjs/voice');
-
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const ytdl = require('ytdl-core');
 const play = require('play-dl');
 
-const queue = new Map();
+const players = new Map();
 
 module.exports = {
   async execute(message, args) {
-    const member = message.guild.members.cache.get(message.author.id);
-    const voiceChannel = member?.voice?.channel;
-
-    if (!voiceChannel) {
-      return message.reply('❌ Join a voice channel first');
-    }
-
-    const permissions = voiceChannel.permissionsFor(message.client.user);
-    if (!permissions.has('Connect') || !permissions.has('Speak')) {
-      return message.reply('❌ Need permission to join & speak');
-    }
-
     const query = args.join(' ');
-    if (!query) return message.reply('❌ Enter a song name');
+    if (!query) return message.reply('❌ Provide a song name or link');
 
-    const serverQueue = queue.get(message.guild.id);
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.reply('❌ Join a voice channel first');
 
-    const song = {
-      title: query,
-      url: query
-    };
+    let url;
 
-    if (!serverQueue) {
-      const queueContruct = {
-        textChannel: message.channel,
-        voiceChannel,
-        connection: null,
-        player: createAudioPlayer(),
-        songs: []
-      };
-
-      queue.set(message.guild.id, queueContruct);
-      queueContruct.songs.push(song);
-
-      try {
-        const connection = joinVoiceChannel({
-          channelId: voiceChannel.id,
-          guildId: message.guild.id,
-          adapterCreator: message.guild.voiceAdapterCreator
-        });
-
-        queueContruct.connection = connection;
-        connection.subscribe(queueContruct.player);
-
-        this.playSong(message.guild, queueContruct.songs[0]);
-
-      } catch (err) {
-        console.error(err);
-        queue.delete(message.guild.id);
-        return message.reply('❌ Error joining VC');
-      }
-
+    // 🔍 CHECK IF LINK OR SEARCH
+    if (ytdl.validateURL(query)) {
+      url = query;
     } else {
-      serverQueue.songs.push(song);
-      return message.reply(`✅ Added to queue: ${query}`);
-    }
-  },
+      const result = await play.search(query, { limit: 1 });
+      if (!result.length) return message.reply('❌ No results found');
 
-  async playSong(guild, song) {
-    const serverQueue = queue.get(guild.id);
-
-    if (!song) {
-      serverQueue.connection.destroy();
-      queue.delete(guild.id);
-      return;
+      url = result[0].url;
     }
 
     try {
-      const stream = await play.stream(song.url);
+      const stream = await play.stream(url);
 
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator
+      });
+
+      const player = createAudioPlayer();
       const resource = createAudioResource(stream.stream, {
         inputType: stream.type
       });
 
-      serverQueue.player.play(resource);
+      player.play(resource);
+      connection.subscribe(player);
 
-      serverQueue.player.once(AudioPlayerStatus.Idle, () => {
-        serverQueue.songs.shift();
-        this.playSong(guild, serverQueue.songs[0]);
+      players.set(message.guild.id, { connection, player });
+
+      message.reply(`🎶 Now playing: ${url}`);
+
+      player.on(AudioPlayerStatus.Idle, () => {
+        connection.destroy();
       });
-
-      serverQueue.textChannel.send(`🎶 Now Playing: ${song.title}`);
 
     } catch (err) {
       console.error(err);
-      serverQueue.songs.shift();
-      this.playSong(guild, serverQueue.songs[0]);
+      message.reply('❌ Error playing music');
     }
   },
 
   skip(message) {
-    const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue) return message.reply('❌ Nothing playing');
+    const data = players.get(message.guild.id);
+    if (!data) return message.reply('❌ Nothing is playing');
 
-    serverQueue.player.stop();
+    data.player.stop();
+    message.reply('⏭ Skipped');
   },
 
   stop(message) {
-    const serverQueue = queue.get(message.guild.id);
-    if (!serverQueue) return message.reply('❌ Nothing playing');
+    const data = players.get(message.guild.id);
+    if (!data) return message.reply('❌ Nothing is playing');
 
-    serverQueue.songs = [];
-    serverQueue.player.stop();
-    serverQueue.connection.destroy();
-    queue.delete(message.guild.id);
+    data.connection.destroy();
+    players.delete(message.guild.id);
+
+    message.reply('⏹ Stopped');
   }
 };
