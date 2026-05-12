@@ -15,11 +15,6 @@ const badwords = [
 // ── RACIST ──
 const racistWords = ["nigger","nigga","chimp","chink","indio"];
 
-// ── ALLOWED LINKS ──
-const allowedLinks = [
-  "facebook.com","fb.com","tiktok.com","youtube.com","youtu.be","roblox.com"
-];
-
 // ⏱ MUTE DURATIONS
 const punishments = [
   5 * 60 * 1000,
@@ -27,10 +22,9 @@ const punishments = [
   60 * 60 * 1000
 ];
 
-// ── SPAM TRACKER (memory)
+// ── SPAM TRACKER
 const spamMap = new Map();
 
-// ── RANDOM PICK
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -38,7 +32,6 @@ function pick(arr) {
 const messages = {
   bad: ["Watch your language.", "Respect others."],
   racist: ["Racist language is not allowed."],
-  link: ["Unauthorized link detected."],
   spam: ["Stop spamming.", "Too many messages detected."]
 };
 
@@ -77,29 +70,16 @@ module.exports = {
       note = pick(messages.racist);
     }
 
-    // ── LINK
-    if (/https?:\/\/|www\./.test(text)) {
-      const allowed = allowedLinks.some(link => text.includes(link));
-      if (!allowed) {
-        type = "Unauthorized Link";
-        note = pick(messages.link);
-      }
-    }
-
     // ── SPAM DETECTION
     const now = Date.now();
-    if (!spamMap.has(userId)) {
-      spamMap.set(userId, []);
-    }
+    if (!spamMap.has(userId)) spamMap.set(userId, []);
 
     const userMessages = spamMap.get(userId);
 
-    // remove old messages (5 seconds window)
     const filtered = userMessages.filter(msg => now - msg.time < 5000);
     filtered.push({ content: text, time: now });
     spamMap.set(userId, filtered);
 
-    // condition: 5 messages in 5 sec OR same message 3x
     const sameMsgCount = filtered.filter(m => m.content === text).length;
 
     if (filtered.length >= 5 || sameMsgCount >= 3) {
