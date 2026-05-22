@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
 
 // 🔧 CONFIG
-const REACTIONS = ['❤', '🤣', '😭', '😡'];
+const REACTIONS = ['❤'];
 
 module.exports = {
   name: Events.MessageCreate,
